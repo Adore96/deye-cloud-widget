@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# IDE / OS
+.idea/
+.vscode/
+.claude/
+Thumbs.db
+
+# Never commit local settings, logs or credentials
+settings.json
+*.log
+.env
+*.key
