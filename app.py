@@ -267,8 +267,17 @@ def main():
         if width >= MIN_SIZE[0] and height >= MIN_SIZE[1]:
             saver.update(width=int(width), height=int(height))
 
+    def set_paused(on):
+        # WebView2 keeps animating a minimised window, so tell the page to stop
+        try:
+            window.evaluate_js(f"window.setPaused && setPaused({'true' if on else 'false'})")
+        except Exception as e:
+            log.debug("pause toggle failed: %s", e)
+
     window.events.moved += on_moved
     window.events.resized += on_resized
+    window.events.minimized += lambda: set_paused(True)
+    window.events.restored += lambda: set_paused(False)
     try:
         webview.start(private_mode=False, storage_path=str(config.DIR / "webview"))  # keeps the chart-mode choice
     finally:

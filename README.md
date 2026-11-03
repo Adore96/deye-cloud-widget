@@ -91,11 +91,25 @@ To change anything later, click the gear icon. Leave the secret and password fie
 | Pin | Toggle always-on-top (highlighted means on) |
 | Minus / X | Minimise / quit |
 | Circular arrow (bottom right) | Refresh now |
+| Leaf (bottom right) | Low-power mode: stop the flow animation (highlighted means on) |
 | Power / Battery tabs | Switch the chart |
 | Drag the title bar | Move it |
 | Drag right edge, bottom edge or corner | Resize (minimum 300 x 260) |
 
 If no new data arrives for 15 minutes, the card dims and the footer turns amber.
+
+### Resource use
+
+Measured on a 2026 laptop (Intel graphics, 18 threads), whole widget including its WebView2 processes:
+
+| State | CPU | RAM |
+|---|---|---|
+| Visible, flow animation on | about 8% of one core (under 1% of the whole CPU) | about 280 MB |
+| Visible, low-power mode | about 1% of one core | about 280 MB |
+| Minimised | about 1% of one core (animation pauses automatically) | about 280 MB |
+
+Most of the RAM is the Edge WebView2 engine that draws the card. Network use is a few small HTTPS requests per
+minute.
 
 ## How it works
 
@@ -103,6 +117,8 @@ If no new data arrives for 15 minutes, the card dims and the footer turns amber.
   uploads to the cloud about every 5 minutes, so you will see new numbers when the next upload lands.
 - Each poll reads `station/latest` and the inverter's `device/latest` and uses whichever reading is newer.
   Daily totals and the chart are refreshed every 5 minutes to save API quota.
+- The flow lines are moved by a small timer at 8 frames per second instead of a CSS animation. A CSS
+  `stroke-dashoffset` animation makes WebView2 redraw at 60 fps and used about 40% of a CPU core.
 - Grid outage detection uses the inverter's reported grid voltage when available (under 50 V means the grid is
   down). Otherwise it falls back to "no grid flow while the battery is powering the house". Cloud data is up to
   about 5 minutes old, so alerts can lag by that much.

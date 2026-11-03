@@ -55,12 +55,11 @@
   .flow > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .flow path { fill: none; stroke-linecap: round; }
   .flow .track { stroke: var(--line); stroke-width: 2; opacity: .8; }
-  .flow .run { stroke-width: 2; stroke-dasharray: 3 8; opacity: 0; transition: opacity .4s, stroke-width .4s;
-    animation: dash 1s linear infinite; }
+  /* dashes are moved by flowTicker() at a few frames per second: a CSS keyframe animation of stroke-dashoffset
+     makes WebView2 repaint at 60 fps and costs ~40% of a CPU core */
+  .flow .run { stroke-width: 2; stroke-dasharray: 3 8; opacity: 0; transition: opacity .4s, stroke-width .4s; }
   .flow .run.live { opacity: 1; }
-  .flow .run.rev { animation-direction: reverse; }
   #rSolar { stroke: var(--solar); } #rGrid { stroke: var(--grid); } #rBatt { stroke: var(--batt); } #rHome { stroke: var(--home); }
-  @keyframes dash { to { stroke-dashoffset: -11; } }
   .hub { position: absolute; left: 50%; top: 77px; width: 10px; height: 10px; border-radius: 50%; background: var(--line);
     transform: translate(-50%, -50%); transition: background .4s, box-shadow .4s; }
   .hub.live { background: var(--home); box-shadow: 0 0 0 4px color-mix(in srgb, var(--home) 22%, transparent); }
@@ -117,6 +116,7 @@
   .iconBtn { width: 22px; height: 22px; }
   .iconBtn svg { width: 12px; height: 12px; }
   .iconBtn.spin svg { animation: spin .8s linear infinite; }
+  #bMotion.on { color: var(--batt); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .stale .flowBox, .stale .tiles { opacity: .5; }
 
@@ -152,7 +152,7 @@
   #setupErr { color: var(--bad); font-size: 11px; min-height: 14px; }
 
   @media (prefers-reduced-motion: reduce) {
-    .flow .run, .dot.ping::after, .iconBtn.spin svg { animation: none; }
+    .dot.ping::after, .iconBtn.spin svg { animation: none; }
   }
 </style>
 </head>
@@ -209,6 +209,7 @@
     <footer>
       <span class="ago" id="ago">Connecting…</span>
       <span class="right"><span id="err"></span>
+        <button class="iconBtn" id="bMotion" title="Low-power mode: stop the flow animation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z"/><path d="M2 21c0-3 1.9-5.4 5.1-6"/></svg></button>
         <button class="iconBtn" id="bRefresh" title="Refresh now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button></span>
     </footer>
   </div>
@@ -271,13 +272,37 @@ function tween(el, to, fmt, ms = 650) {
 }
 
 /* ---------- power flow ---------- */
+const flows = {};  // path id -> { el, speed (px/s along the dash pattern, negative = reverse), offset }
 function setFlow(id, watts, reverse) {
   const p = $(id), live = Math.abs(watts) > 10;
   p.classList.toggle('live', live);
-  p.classList.toggle('rev', live && reverse);
   p.style.strokeWidth = live ? (2 + Math.min(2.5, Math.abs(watts) / 1600)).toFixed(2) : '';
-  p.style.animationDuration = live ? Math.max(0.35, 1.6 - Math.abs(watts) / 3500) + 's' : '';
+  const f = flows[id] || (flows[id] = { el: p, offset: 0 });
+  // one 11px dash period per 0.35-1.6 s, faster for bigger flows
+  f.speed = live ? (reverse ? -1 : 1) * 11 / Math.max(0.35, 1.6 - Math.abs(watts) / 3500) : 0;
+  flowTicker();
   return live;
+}
+
+const FLOW_FPS = 8;
+let flowTimer = null, flowLast = 0;
+function flowTicker() {
+  const run = !reduceMotion && !card.classList.contains('paused') && !card.classList.contains('lowpower')
+    && Object.values(flows).some(f => f.speed);
+  if (run && !flowTimer) {
+    flowLast = performance.now();
+    flowTimer = setInterval(() => {
+      const now = performance.now(), dt = (now - flowLast) / 1000;
+      flowLast = now;
+      for (const f of Object.values(flows)) {
+        if (!f.speed) continue;
+        f.offset = (f.offset - f.speed * dt) % 11;
+        f.el.style.strokeDashoffset = f.offset.toFixed(1);
+      }
+    }, 1000 / FLOW_FPS);
+  } else if (!run && flowTimer) {
+    clearInterval(flowTimer); flowTimer = null;
+  }
 }
 
 function render(d) {
@@ -499,6 +524,19 @@ $('#bOpen').onclick = () => api.open_site().catch(() => {});
 $('#bMin').onclick = () => api.minimize();
 $('#bClose').onclick = () => api.close();
 $('#bRefresh').onclick = () => refresh();
+
+/* ---------- CPU: no animation while minimised/hidden, or at all in low-power mode ---------- */
+window.setPaused = on => { card.classList.toggle('paused', !!on); flowTicker(); };  // called from Python on minimise/restore
+document.addEventListener('visibilitychange', () => setPaused(document.hidden));
+function setLowPower(on) {
+  card.classList.toggle('lowpower', on);
+  $('#bMotion').classList.toggle('on', on);
+  $('#bMotion').title = on ? 'Low-power mode is on: click to animate the power flow' : 'Low-power mode: stop the flow animation';
+  try { localStorage.setItem('lowPower', on ? '1' : ''); } catch (e) {}
+  flowTicker();
+}
+$('#bMotion').onclick = () => setLowPower(!card.classList.contains('lowpower'));
+try { setLowPower(localStorage.getItem('lowPower') === '1'); } catch (e) {}
 $('#bSetup').onclick = () => showSetup(!card.classList.contains('setupMode') || !state.configured);
 $('#devLink').onclick = () => api.open_url('https://developer.deyecloud.com/');
 $('#setup').onsubmit = async e => {
