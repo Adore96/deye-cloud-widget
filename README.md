@@ -7,6 +7,8 @@ using right now, whether the battery is charging, and whether the grid is up, wi
 > Unofficial community project. Not affiliated with or endorsed by Deye. It only reads data from your own
 > account through DeyeCloud's public developer API.
 
+![Deye Cloud Widget in its wide layout: power flow diagram on the left, today's totals and a day chart on the right](docs/screenshot-wide.png)
+
 ## Features
 
 - **Live power flow** between Solar, Grid, Battery and Home, with animated flow lines that scale with power.
@@ -19,6 +21,9 @@ using right now, whether the battery is charging, and whether the grid is up, wi
 - **Grid outage alerts:** a Windows notification when the grid goes down and when it comes back.
 - **Resizable** by dragging the right edge, bottom edge or corner grip. Small sizes show just the diagram,
   wide sizes switch to two columns. Size and position are remembered.
+
+  ![The compact layout: just the power flow diagram and the last update time](docs/screenshot-compact.png)
+
 - **Light and dark** theme, following Windows.
 - **Always on top** toggle, minimise, and one click to open the full DeyeCloud station page.
 - Optional **start with Windows**.
