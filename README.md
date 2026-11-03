@@ -11,7 +11,8 @@ using right now, whether the battery is charging, and whether the grid is up, wi
 
 ## Features
 
-- **Live power flow** between Solar, Grid, Battery and Home, with animated flow lines that scale with power.
+- **Live power flow** between Solar, Grid, Battery and Home, routed through an inverter icon in the middle, with
+  animated flow lines that scale with power. The inverter lights up while any power is flowing.
 - **Battery state of charge** and whether it is charging or discharging.
 - **Today's totals:** solar generated, energy used, imported, exported, battery in/out, and self-use %.
 - **Day chart** of solar and load (or battery charge), with a hover tooltip.
